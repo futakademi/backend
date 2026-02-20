@@ -4,7 +4,7 @@
   "description": "Futakademi backend API",
   "scripts": {
     "build": "nest build",
-    "start": "node dist/main",
+    "start": "sh start.sh",
     "start:dev": "nest start --watch",
     "prisma:migrate": "prisma migrate dev",
     "prisma:generate": "prisma generate",

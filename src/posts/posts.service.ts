@@ -10,7 +10,9 @@ export class PostsService {
   constructor(private readonly prisma: PrismaService) {}
 
   async findAll(category?: string, page = 1, limit = 12) {
-    const skip = (page - 1) * limit;
+    const pageNum = Number(page) || 1;
+    const limitNum = Number(limit) || 12;
+    const skip = (pageNum - 1) * limitNum;
     const where: any = { status: 'published' };
     if (category) where.category = category;
 
@@ -18,7 +20,7 @@ export class PostsService {
       this.prisma.post.findMany({
         where,
         skip,
-        take: limit,
+        take: limitNum,
         orderBy: { createdAt: 'desc' },
         select: {
           id: true,
@@ -35,7 +37,7 @@ export class PostsService {
 
     return {
       data: posts,
-      meta: { total, page, limit, totalPages: Math.ceil(total / limit) },
+      meta: { total, page: pageNum, limit: limitNum, totalPages: Math.ceil(total / limitNum) },
     };
   }
 

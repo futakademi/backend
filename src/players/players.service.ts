@@ -9,7 +9,9 @@ export class PlayersService {
 
   async search(dto: SearchPlayersDto, userRole?: Role) {
     const { name, position, club, league, birthYear, page = 1, limit = 20 } = dto;
-    const skip = (page - 1) * limit;
+    const pageNum = Number(page) || 1;
+    const limitNum = Number(limit) || 20;
+    const skip = (pageNum - 1) * limitNum;
 
     const where: any = {};
 
@@ -40,12 +42,8 @@ export class PlayersService {
       this.prisma.player.findMany({
         where,
         skip,
-        take: limit,
-        orderBy: [
-          // Premium oyuncular öne çıkar
-          { isClaimed: 'desc' },
-          { lastName: 'asc' },
-        ],
+        take: limitNum,
+        orderBy: [{ isClaimed: 'desc' }, { lastName: 'asc' }],
         include: {
           customData: userRole === 'premium' || userRole === 'admin',
         },
@@ -53,16 +51,15 @@ export class PlayersService {
       this.prisma.player.count({ where }),
     ]);
 
-    // Free kullanıcılara premium içerik gösterilmez
     const sanitized = players.map((p) => this.sanitizePlayer(p, userRole));
 
     return {
       data: sanitized,
       meta: {
         total,
-        page,
-        limit,
-        totalPages: Math.ceil(total / limit),
+        page: pageNum,
+        limit: limitNum,
+        totalPages: Math.ceil(total / limitNum),
       },
     };
   }

@@ -3,6 +3,7 @@ import {
   Get,
   Post,
   Put,
+  Delete,
   Body,
   Param,
   Query,
@@ -20,13 +21,11 @@ import { CurrentUser } from '../common/decorators/public.decorator';
 export class AdminController {
   constructor(private readonly adminService: AdminService) {}
 
-  // Dashboard
   @Get('dashboard')
   getDashboard() {
     return this.adminService.getDashboardStats();
   }
 
-  // Claim yönetimi
   @Get('claims/pending')
   getPendingClaims() {
     return this.adminService.getPendingClaims();
@@ -46,7 +45,6 @@ export class AdminController {
     return this.adminService.rejectClaim(id, adminId, reason);
   }
 
-  // Kullanıcı yönetimi
   @Get('users')
   getUsers(
     @Query('page') page?: number,
@@ -65,13 +63,16 @@ export class AdminController {
     return this.adminService.setUserRole(userId, role, adminId);
   }
 
-  // TFF Import
   @Post('import/players')
   importPlayers(@Body() body: { players: any[] }, @CurrentUser('id') adminId: string) {
     return this.adminService.importPlayers(body.players, adminId);
   }
 
-  // Audit log
+  @Delete('players/:id')
+  deletePlayer(@Param('id') id: string, @CurrentUser('id') adminId: string) {
+    return this.adminService.deletePlayer(id, adminId);
+  }
+
   @Get('audit-logs')
   getAuditLogs(@Query('page') page?: number, @Query('limit') limit?: number) {
     return this.adminService.getAuditLogs(page, limit);

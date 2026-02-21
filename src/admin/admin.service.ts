@@ -13,8 +13,6 @@ export class AdminService {
     private readonly playersService: PlayersService,
   ) {}
 
-  // ── CLAIM YÖNETİMİ ──────────────────────────────────────────
-
   async getPendingClaims() {
     return this.prisma.claimRequest.findMany({
       where: { status: 'pending_admin_review' },
@@ -31,13 +29,8 @@ export class AdminService {
         },
         player: {
           select: {
-            id: true,
-            firstName: true,
-            lastName: true,
-            birthYear: true,
-            club: true,
-            position: true,
-            league: true,
+            id: true, firstName: true, lastName: true,
+            birthYear: true, club: true, position: true, league: true,
           },
         },
       },
@@ -50,101 +43,44 @@ export class AdminService {
       where: { id: claimId },
       include: { player: true, user: true },
     });
-
     if (!claim) throw new NotFoundException('Talep bulunamadı.');
-    if (claim.status !== 'pending_admin_review') {
-      throw new BadRequestException('Bu talep zaten işleme alınmış.');
-    }
-    if (claim.player.isClaimed) {
-      throw new BadRequestException('Bu oyuncu profili zaten başka biri tarafından alınmış.');
-    }
+    if (claim.status !== 'pending_admin_review') throw new BadRequestException('Bu talep zaten işleme alınmış.');
+    if (claim.player.isClaimed) throw new BadRequestException('Bu oyuncu profili zaten başka biri tarafından alınmış.');
 
     await this.prisma.$transaction([
-      this.prisma.claimRequest.update({
-        where: { id: claimId },
-        data: { status: 'approved', reviewedAt: new Date() },
-      }),
-      this.prisma.player.update({
-        where: { id: claim.playerId },
-        data: { isClaimed: true, claimedById: claim.userId },
-      }),
-      this.prisma.user.update({
-        where: { id: claim.userId },
-        data: {
-          claimedPlayerId: claim.playerId,
-          verificationStatus: 'approved',
-        },
-      }),
-      this.prisma.adminAuditLog.create({
-        data: {
-          adminId,
-          action: 'CLAIM_APPROVED',
-          targetType: 'ClaimRequest',
-          targetId: claimId,
-          meta: { playerId: claim.playerId, userId: claim.userId },
-        },
-      }),
+      this.prisma.claimRequest.update({ where: { id: claimId }, data: { status: 'approved', reviewedAt: new Date() } }),
+      this.prisma.player.update({ where: { id: claim.playerId }, data: { isClaimed: true, claimedById: claim.userId } }),
+      this.prisma.user.update({ where: { id: claim.userId }, data: { claimedPlayerId: claim.playerId, verificationStatus: 'approved' } }),
+      this.prisma.adminAuditLog.create({ data: { adminId, action: 'CLAIM_APPROVED', targetType: 'ClaimRequest', targetId: claimId, meta: { playerId: claim.playerId, userId: claim.userId } } }),
     ]);
-
     return { message: 'Profil talebi onaylandı.' };
   }
 
   async rejectClaim(claimId: string, adminId: string, reason?: string) {
     const claim = await this.prisma.claimRequest.findUnique({ where: { id: claimId } });
     if (!claim) throw new NotFoundException('Talep bulunamadı.');
-    if (claim.status !== 'pending_admin_review') {
-      throw new BadRequestException('Bu talep zaten işleme alınmış.');
-    }
+    if (claim.status !== 'pending_admin_review') throw new BadRequestException('Bu talep zaten işleme alınmış.');
 
     await this.prisma.$transaction([
-      this.prisma.claimRequest.update({
-        where: { id: claimId },
-        data: { status: 'rejected', reviewedAt: new Date() },
-      }),
-      this.prisma.user.update({
-        where: { id: claim.userId },
-        data: { verificationStatus: 'rejected' },
-      }),
-      this.prisma.adminAuditLog.create({
-        data: {
-          adminId,
-          action: 'CLAIM_REJECTED',
-          targetType: 'ClaimRequest',
-          targetId: claimId,
-          meta: { reason, userId: claim.userId },
-        },
-      }),
+      this.prisma.claimRequest.update({ where: { id: claimId }, data: { status: 'rejected', reviewedAt: new Date() } }),
+      this.prisma.user.update({ where: { id: claim.userId }, data: { verificationStatus: 'rejected' } }),
+      this.prisma.adminAuditLog.create({ data: { adminId, action: 'CLAIM_REJECTED', targetType: 'ClaimRequest', targetId: claimId, meta: { reason, userId: claim.userId } } }),
     ]);
-
     return { message: 'Profil talebi reddedildi.' };
   }
 
-  // ── KULLANICI YÖNETİMİ ──────────────────────────────────────
-
   async getUsers(page = 1, limit = 50, role?: string) {
-    const skip = (page - 1) * limit;
+    const skip = (Number(page) - 1) * Number(limit);
     const where: any = {};
     if (role) where.role = role;
-
     const [users, total] = await Promise.all([
       this.prisma.user.findMany({
-        where,
-        skip,
-        take: limit,
+        where, skip, take: Number(limit),
         orderBy: { createdAt: 'desc' },
-        select: {
-          id: true,
-          email: true,
-          role: true,
-          verificationStatus: true,
-          claimAttempts: true,
-          subscriptionEnd: true,
-          createdAt: true,
-        },
+        select: { id: true, email: true, role: true, verificationStatus: true, claimAttempts: true, subscriptionEnd: true, createdAt: true },
       }),
       this.prisma.user.count({ where }),
     ]);
-
     return { data: users, meta: { total, page, limit } };
   }
 
@@ -154,64 +90,47 @@ export class AdminService {
       data: { role: role as any },
       select: { id: true, email: true, role: true },
     });
-
-    await this.prisma.adminAuditLog.create({
-      data: {
-        adminId,
-        action: 'USER_ROLE_CHANGED',
-        targetType: 'User',
-        targetId: userId,
-        meta: { newRole: role },
-      },
-    });
-
+    await this.prisma.adminAuditLog.create({ data: { adminId, action: 'USER_ROLE_CHANGED', targetType: 'User', targetId: userId, meta: { newRole: role } } });
     return user;
   }
 
-  // ── TFF IMPORT ──────────────────────────────────────────────
-
   async importPlayers(players: any[], adminId: string) {
     const result = await this.playersService.upsertFromTff(players);
-
-    await this.prisma.adminAuditLog.create({
-      data: {
-        adminId,
-        action: 'TFF_IMPORT',
-        targetType: 'Player',
-        targetId: 'bulk',
-        meta: result,
-      },
-    });
-
+    await this.prisma.adminAuditLog.create({ data: { adminId, action: 'TFF_IMPORT', targetType: 'Player', targetId: 'bulk', meta: result } });
     return result;
   }
 
-  // ── AUDIT LOG ───────────────────────────────────────────────
+  async deletePlayer(playerId: string, adminId: string) {
+    const player = await this.prisma.player.findUnique({ where: { id: playerId } });
+    if (!player) throw new NotFoundException('Oyuncu bulunamadı.');
+
+    if (player.isClaimed && player.claimedById) {
+      await this.prisma.user.update({
+        where: { id: player.claimedById },
+        data: { claimedPlayerId: null, verificationStatus: 'none' },
+      });
+    }
+
+    await this.prisma.$transaction([
+      this.prisma.claimRequest.deleteMany({ where: { playerId } }),
+      this.prisma.playerCustomData.deleteMany({ where: { playerId } }),
+      this.prisma.player.delete({ where: { id: playerId } }),
+      this.prisma.adminAuditLog.create({ data: { adminId, action: 'PLAYER_DELETED', targetType: 'Player', targetId: playerId, meta: { name: `${player.firstName} ${player.lastName}` } } }),
+    ]);
+    return { message: 'Oyuncu silindi.' };
+  }
 
   async getAuditLogs(page = 1, limit = 50) {
-    const skip = (page - 1) * limit;
+    const skip = (Number(page) - 1) * Number(limit);
     const [logs, total] = await Promise.all([
-      this.prisma.adminAuditLog.findMany({
-        skip,
-        take: limit,
-        orderBy: { createdAt: 'desc' },
-      }),
+      this.prisma.adminAuditLog.findMany({ skip, take: Number(limit), orderBy: { createdAt: 'desc' } }),
       this.prisma.adminAuditLog.count(),
     ]);
     return { data: logs, meta: { total, page, limit } };
   }
 
-  // ── DASHBOARD ───────────────────────────────────────────────
-
   async getDashboardStats() {
-    const [
-      totalUsers,
-      premiumUsers,
-      totalPlayers,
-      claimedPlayers,
-      pendingClaims,
-      totalPosts,
-    ] = await Promise.all([
+    const [totalUsers, premiumUsers, totalPlayers, claimedPlayers, pendingClaims, totalPosts] = await Promise.all([
       this.prisma.user.count(),
       this.prisma.user.count({ where: { role: 'premium' } }),
       this.prisma.player.count(),
@@ -219,14 +138,6 @@ export class AdminService {
       this.prisma.claimRequest.count({ where: { status: 'pending_admin_review' } }),
       this.prisma.post.count({ where: { status: 'published' } }),
     ]);
-
-    return {
-      totalUsers,
-      premiumUsers,
-      totalPlayers,
-      claimedPlayers,
-      pendingClaims,
-      totalPosts,
-    };
+    return { totalUsers, premiumUsers, totalPlayers, claimedPlayers, pendingClaims, totalPosts };
   }
 }

@@ -42,6 +42,12 @@ export class LeaguesController {
     return this.leaguesService.updateTeam(teamId, dto);
   }
 
+  @Delete('teams/:teamId')
+  @Roles('admin')
+  deleteTeam(@Param('teamId') teamId: string) {
+    return this.leaguesService.deleteTeam(teamId);
+  }
+
   @Delete(':id')
   @Roles('admin')
   delete(@Param('id') id: string) {

@@ -50,6 +50,13 @@ export class LeaguesService {
     return this.prisma.team.update({ where: { id: teamId }, data });
   }
 
+  async deleteTeam(teamId: string) {
+    const team = await this.prisma.team.findUnique({ where: { id: teamId } });
+    if (!team) throw new NotFoundException('Takım bulunamadı.');
+    await this.prisma.team.delete({ where: { id: teamId } });
+    return { message: 'Takım silindi.' };
+  }
+
   async deleteLeague(id: string) {
     return this.prisma.league.delete({ where: { id } });
   }

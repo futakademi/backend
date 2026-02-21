@@ -23,7 +23,6 @@ export class LeaguesService {
         },
       },
     });
-
     if (!league) throw new NotFoundException('Lig bulunamadı.');
     return league;
   }
@@ -35,12 +34,8 @@ export class LeaguesService {
   async upsertTeam(leagueId: string, dto: UpsertTeamDto) {
     const league = await this.prisma.league.findUnique({ where: { id: leagueId } });
     if (!league) throw new NotFoundException('Lig bulunamadı.');
-
     return this.prisma.team.upsert({
-      where: {
-        // Takım adı + lig kombinasyonu unique sayıyoruz
-        id: dto.teamId ?? 'new',
-      },
+      where: { id: dto.teamId ?? 'new' },
       create: { leagueId, ...dto },
       update: { ...dto },
     });
